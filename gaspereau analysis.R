@@ -2,12 +2,33 @@ library(mgcv)
 
 load("gaspereau 2007-2019.rdata")
 
+# Strategy:
+#
+#
+#
+# Because of the grid-based nature of the NS surveys spatial sampling design, a natural strategy for
+# handling spatial random effects are Conditional Auto-Regressive models over space and possibly time.
+#
+# To do:
+# - Convert station IDs to xy integer coordinates.
+# - Test simple CAR model
+# - Check for annual varying of depth relationships.
+# - Check if TMB can handle CAR models.
+
+
 # Fit various models:
 model <- list()
 model[[1]] <- gamm(f ~ 1 + offset(off), random = list(year = ~1, length = ~ 1), family = poisson, data = data)
 model[[2]] <- gamm(f ~ 1 + s(xkm, ykm) + offset(off), random = list(year = ~1, length = ~ 1), family = poisson, data = data)
 model[[3]] <- gamm(f ~ 1 + s(xkm, ykm) + offset(off), random = list(year = ~1, length = ~ 1), family = poisson, data = data)
 model[[4]] <- gamm(f ~ 1 + offset(off), random = list(year = ~1, length = ~ 1, station = ~1), family = poisson, data = data)
+
+# To do:
+# Predict over spatial grid:
+# Map spatial grid for a single year.
+# Map spatial grid over all years.
+# Predict length-frequencies by year with errors.
+# Estimate annual abundance indices.
 
 # Stop here!
 
