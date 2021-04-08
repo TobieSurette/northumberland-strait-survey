@@ -1,17 +1,26 @@
 library(gulf.data)
 library(gulf.graphics)
 library(gulf.spatial)
+library(glmmTMB)
 
-years <- 2007:2019
+years <- 2007:2020
 x <- read.nssset(years, survey = "regular")
 y <- read.nsscat(years, survey = "regular", species = "gaspereau")
 z <- read.nsslen(years, survey = "regular", species = "gaspereau")
 b <- read.nssbio(years, survey = "regular", species = "gaspereau")
 
-# Attach information to set card:
+# Fill-in missing set information:
+ix <- which(is.na(x$distance) & (x$experiment != 3))
+x$distance[ix] <- (1 / 1.852) * distance(-dmm2deg(x$longitude.start[ix]), dmm2deg(x$latitude.start[ix]), -dmm2deg(x$longitude.end[ix]), dmm2deg(x$latitude.end[ix]), pairwise = FALSE)
 x <- x[which((x$experiment != 3) & !is.na(x$distance)), ]
+z$ratio[is.na(z$ratio)] <- 1
+
+# Attach information to set card:
 import(x, fill = 1, var = "ratio") <- aggregate(z["ratio"], by = z[key(x)], unique)
 import(x, fill = 0) <- freq(z, by = key(x))
+x$gear[which((x$gear == 14) & (year(x) == 2019))] <- 19
+x$gear[which((x$gear == 13) & (year(x) == 2019))] <- 16
+x$gear[which((x$gear == 13) & (year(x) == 2020))] <- 16
 x$gear.type <- gear(x$gear)
 x$longitude <- -dmm2deg(lon(x))
 x$latitude  <- dmm2deg(lat(x))
@@ -57,21 +66,25 @@ x <- x[!is.na(x$x) & !is.na(x$y), ]  # Remove problem grid coordinates.
 x           <- x[, setdiff(names(x), as.character(c(0:12, 34:50)))] # Remove small and over-large fish.
 fvars       <- names(x)[gsub("[0-9]", "", names(x)) == ""]
 data <- data.frame(f         = as.vector(as.matrix(x[fvars])),
-                   length    = as.factor(as.numeric(repvec(fvars, nrow = nrow(x)))),
-                   distance  = rep(x$distance, each = length(fvars)),
-                   year      = as.factor(rep(year(x), each = length(fvars))),
-                   gear      = as.factor(rep(x$gear.type, each = length(fvars))),
-                   xkm       = rep(x$xkm, each = length(fvars)),
-                   ykm       = rep(x$ykm, each = length(fvars)),
-                   x         = rep(x$x, each = length(fvars)),
-                   y         = rep(x$y, each = length(fvars)),
-                   position  = rep(x$position, each = length(fvars)),
-                   station   = as.factor(rep(x$station, each = length(fvars))),
-                   off       = as.numeric(rep(log(x$distance / 0.625), each = length(fvars))))
+                   length    = as.factor(as.vector(repvec(fvars, nrow = nrow(x)))),
+                   year      = as.factor(rep(year(x), length(fvars))),
+                   distance  = rep(x$distance, length(fvars)),
+                   gear      = as.factor(rep(x$gear.type, length(fvars))),
+                   xkm       = rep(x$xkm, length(fvars)),
+                   ykm       = rep(x$ykm, length(fvars)),
+                   x         = rep(x$x, length(fvars)),
+                   y         = rep(x$y, length(fvars)),
+                   position  = rep(x$position, length(fvars)),
+                   station   = as.factor(rep(x$station, length(fvars))),
+                   off       = as.numeric(rep(log(x$distance / 0.625), length(fvars))))
 
 data          <- data[!is.na(data$x) & !is.na(data$y), ]       # Problems with grid coordinates.
 data$offset   <- log(data$distance / 0.625)                    # Tow distance offset term.
 data$group    <- factor(rep(1, nrow(data)))                    # Dummy variable to treat global effects.
 data$depth    <- grid$depth[match(data$station, grid$station)] # Get depth from survey grid.
+data$depth.meters <- rep(round(x$depth,1), length(fvars))
+data$len <- as.numeric(as.character(data$length))
+data$len2 <- data$len^2
+data$sampling <- factor(paste0(data$year, "-", data$station))
 
-save(data, grid, file = "gaspereau 2007-2019.rdata")
+save(data, grid, file = paste0("gaspereau ", min(years), "-", max(years), ".rdata"))

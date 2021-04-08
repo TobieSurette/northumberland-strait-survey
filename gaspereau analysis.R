@@ -1,91 +1,177 @@
+library(gulf.data)
+library(gulf.graphics)
 library(mgcv)
 library(glmmTMB)
 
+# To do:
+# - Number of stations on LF plot.
+# - Superimpose bubble-plot over interpolated map.
+# - Abundance indices.
+# -
+
 # Load data:
-load("gaspereau 2007-2019.rdata")
+load("gaspereau 2007-2020.rdata")
 
-aggregate(data$f, by = data["year"], mean)
+data <- data[data$year %in% 2007:2019, ]
+data <- data[data$gear != "Northumberland trawl", ]
+data$gear <- factor(as.character(data$gear))
 
-model <- glmmTMB(f ~ year, family = poisson, data = data, verbose = TRUE)
-model <- glmmTMB(f ~ (year | group), family = poisson, data = data, verbose = TRUE)
-model <- glmmTMB(f ~ (year + 0 | group), family = poisson, data = data, verbose = TRUE)
-model <- glmmTMB(f ~ (depth + 0 | group), family = poisson, data = data, verbose = TRUE)
-model <- glmmTMB(f ~ ar1(depth + 0 | group), family = poisson, data = data, verbose = TRUE)
-model <- glmmTMB(f ~ (length + 0 | group), family = poisson, data = data, verbose = TRUE)
-model <- glmmTMB(f ~ ar1(length + 0 | group), family = poisson, data = data, verbose = TRUE)
+years <- as.numeric(as.character(data$year))
 
-# model <- glmmTMB(f ~ (station + 0 |group), family = poisson, data = data, verbose = TRUE)
-model <- glmmTMB(f ~ ar1(year + 0 | group) + exp(position + 0 | group), family = poisson, data = data, verbose = TRUE)
+# Plot empirical data:
+clg()
+m <- kronecker(matrix(1:14, ncol = 2), matrix(1, nrow = 5, ncol = 5))
+m <- rbind(0, cbind(0, m, 0), 0, 0)
+layout(m)
+par(mar = c(0,0,0,0))
+for (i in 1:length(years)){
+   ix <- data$year == years[i]
+   z <- data[ix, ]
+   print(years[i])
+   r <- aggregate(z$f, by = z["length"], sum)
+   gbarplot(r[, 2], as.numeric(as.character(r[, 1])))
+}
 
-# Year x depth:
-model <- glmmTMB(f ~ ar1(year + 0 | group) + ar1(depth + 0 | group), family = poisson, data = data, verbose = TRUE)
-model <- glmmTMB(f ~ (depth + 0 | year), family = poisson, data = data, verbose = TRUE)
-model <- glmmTMB(f ~ (year + 0 | depth), family = poisson, data = data, verbose = TRUE)
-model <- glmmTMB(f ~ ar1(depth + 0 | year), family = poisson, data = data, verbose = TRUE)
-model <- glmmTMB(f ~ ar1(year + 0 | depth), family = poisson, data = data, verbose = TRUE)
+# Fit model:
+model <- glmmTMB(f ~ gear +
+                     ar1(year + 0 | group) +
+                     ar1(length + 0 | group) +
+                     ar1(depth + 0 | group) +
+                     ar1(length + 0 | gear) +
+                     ar1(length + 0 | year) +
+                     exp(position + 0 | group) +
+                     exp(position + 0 | year),
+                 offset = off, family = poisson, data = data, verbose = TRUE)
 
-# Year x length:
-model <- glmmTMB(f ~ ar1(year + 0 | group) + ar1(length + 0 | group), family = poisson, data = data, verbose = TRUE)
-model <- glmmTMB(f ~ (length + 0 | year), family = poisson, data = data, verbose = TRUE)
-model <- glmmTMB(f ~ (year + 0 | length), family = poisson, data = data, verbose = TRUE)
-model <- glmmTMB(f ~ ar1(length + 0 | year), family = poisson, data = data, verbose = TRUE)
-
-# Quadratic length:
-model <- glmmTMB(f ~ (len|year) + len2 + ar1(length + 0 | year), family = poisson, data = data, verbose = TRUE)
-newdata <- data.frame(year = factor(2014, levels = levels(data$year)),
-                      len = 13:33,
-                      len2 = (13:33)^2,
-                      length = factor(13:33, levels = levels(data$length)))
-gbarplot(predict(model, newdata = newdata), 13:33)
-
-
-
-
-model <- glmmTMB(f ~ year + ar1(length + 0 | year), family = poisson, data = data, verbose = TRUE)
-newdata <- data.frame(year = factor(2013, levels = levels(data$year)),
-                      len = 13:33,
-                      len2 = (13:33)^2,
-                      length = factor(13:33, levels = levels(data$length)))
-gbarplot(exp(predict(model, newdata = newdata)), 13:33)
-
-model <- glmmTMB(f ~ (length + 0 | year), family = poisson, data = data, verbose = TRUE)
-
-image(2007:2019, 13:33, t(as.matrix(ranef(model)[[1]]$length)))
-
-# Length, depth and year:
-model <- glmmTMB(f ~ year + ar1(depth + 0 | group) + ar1(length + 0 | year), family = poisson, data = data, verbose = TRUE)
-newdata <- data.frame(year = factor(2009, levels = levels(data$year)),
-                      depth = sort(unique(data$depth))[6],
-                      group = factor(1),
-                      length = factor(13:33, levels = levels(data$length)))
-gbarplot(exp(predict(model, newdata = newdata)), 13:33)
-
-model <- glmmTMB(f ~ ar1(depth + 0 | group) + ar1(year + 0 | length), family = poisson, data = data, verbose = TRUE)
-
-# Position models:
-model <- glmmTMB(f ~ exp(position + 0 | group), family = poisson, data = data, verbose = TRUE)
-model <- glmmTMB(f ~ exp(position + 0 | group), family = poisson, data = data, verbose = TRUE)
-model <- glmmTMB(f ~ ar1(depth + 0 | group) + ar1(length + 0 | year) + exp(position + 0 | group), family = poisson, data = data, verbose = TRUE)
-
-grid$group <- factor(1)
-grid$year <- factor(2009, levels(data$year))
-grid$length <- factor(25, levels(data$length))
-mu <- predict(model, newdata = grid)
-
-model <- glmmTMB(f ~ ar1(depth + 0 | group) + ar1(length + 0 | year) + exp(position + 0 | group), family = poisson, data = data, verbose = TRUE)
-
-# This seems to converge:
-formula <- f ~ ar1(depth + 0 | group) +      # AR(1) depth effects
-               ar1(length + 0 | year) +      # AR(1) length effects
-               exp(position + 0 | group) +   # Global spatial effect.
-               exp(position + 0 | year)      # Anuual spatial effects.
-model2 <- glmmTMB(formula, family = poisson, data = data, verbose = TRUE)
 
 # Next add gear effects, gear x length, maybe, tow distance offsets:
 # Station effects may be necessary to do comparative effects:
 # Model, local, annual, length-frequencies.
+years <- as.numeric(as.character(unique(data$year)))
+ix <- which(grid$position %in% data$position)
+lens <- 13:33
+r <- matrix(NA, nrow = length(years), ncol = length(lens))
+dimnames(r) <- list(year = years, length = lens)
 
-predict(model, newdata = grid)
+mu <- array(NA, dim = c(length(ix), length(lens), length(years)))
+dimnames(mu) <- list(1:length(ix), length = lens, year = years)
+for (i in 2:length(years)){
+   print(years[i])
+   for (j in 1:length(lens)){
+      print(lens[j])
+      grid$length <- factor(lens[j], levels = levels(data$length))
+      grid$year   <- factor(years[i], levels = levels(data$year))
+      grid$group <- factor(1)
+      grid$gear <- unique(data$gear)[1]
+      grid$off <- 0
+      mu[,j,i] <- predict(model, newdata = grid[ix,])
+      r[i,j] <- mean(exp(mu[,j,i]))
+   }
+}
+
+# Display map:
+map <- matrix(NA, nrow = max(grid$x), ncol = max(grid$y))
+for (k in 1:length(ix)) map[grid$x[ix[k]], grid$y[ix[k]]] <- mu[k, 1, 1]
+
+xx <- -64.86194 + ((1:max(grid$x))-1) * dx
+yy <- 45.7 + ((1:max(grid$y))-1) * dy
+image(xx, yy, exp(map))
+ux <- x$longitude[year(x) == 2007]
+uy <- x$latitude[year(x) == 2007]
+uz <- apply(x[fvars], 1, sum)[year(x) == 2007]
+points(ux, uy, cex = 0.3 * sqrt(uz))
+points(ux[uz == 0], uy[uz == 0], pch = "x", lwd = 2, cex = 0.75)
+map("coast")
+
+apply(mu, c(1,2), sum)
+
+# Bathymetry map for the Northumberland Strait:
+map.new(xlim = c(-65, -61.5), ylim = c(45.6, 47.25))
+map("bathymetry")
+map("coast")
+map.axis(1:2)
+box()
+
+# Plot spatial effect:
+z <- ranef(model)[[1]]$group
+z <- as.matrix(z[grep("position", names(z))])[1,]
+str <- gsub("position", "", names(z))
+str <- gsub("[()]", "", str)
+zx <- as.numeric(unlist(lapply(strsplit(str, ","), function(x) x[1])))
+zy <- as.numeric(unlist(lapply(strsplit(str, ","), function(x) x[2])))
+map <- matrix(NA, nrow = max(grid$x), ncol = max(grid$y))
+d <- depth(grid$longitude, grid$latitude)
+for (k in 1:length(z)){
+   map[zx[k], zy[k]] <- z[k]
+}
+xx <- -64.86194 + ((1:max(grid$x))-1) * dx
+yy <- 45.7 + ((1:max(grid$y))-1) * dy
+image(xx, yy, map)
+points(x$longitude[year(x) == 2007], x$latitude[year(x) == 2007])
+map("coast")
+
+# Plot depth effect:
+z <- ranef(model)[[1]]$group
+z <- as.matrix(z[grep("depth", names(z))])[1,]
+str <- gsub("position", "", names(z))
+str <- gsub("[()]", "", str)
+zx <- as.numeric(unlist(lapply(strsplit(str, ","), function(x) x[1])))
+zy <- as.numeric(unlist(lapply(strsplit(str, ","), function(x) x[2])))
+map <- matrix(NA, nrow = max(grid$x), ncol = max(grid$y))
+d <- depth(grid$longitude, grid$latitude)
+for (k in 1:length(z)){
+   map[zx[k], zy[k]] <- z[k]
+}
+xx <- -64.86194 + ((1:max(grid$x))-1) * dx
+yy <- 45.7 + ((1:max(grid$y))-1) * dy
+image(xx, yy, map)
+points(x$longitude[year(x) == 2007], x$latitude[year(x) == 2007])
+map("coast")
+
+dx <- mean(diff(sort(unique(grid$longitude))))
+dy <- mean(diff(sort(unique(grid$latitude))))
+fun <- function(x, y){
+   v <- NA * x
+   for (i in 1:length(x)) v[i] <- which.min(abs(x[i] - y))
+   return(v)
+}
+grid$x <- fun(grid$longitude, seq(min(grid$longitude), max(grid$longitude), dx))
+grid$y <- fun(grid$latitude, seq(min(grid$latitude), max(grid$latitude), dy))
+
+
+xx <- -64.86194 + grid$x- * dx
+yy <-  45.70000 + grid$y * dy
+
+
+
+# Plot empirical data:
+clg()
+m <- kronecker(matrix(1:14, ncol = 2), matrix(1, nrow = 5, ncol = 5))
+m <- rbind(0, cbind(0, m, 0), 0, 0)
+layout(m)
+par(mar = c(0,0,0,0))
+for (i in 1:length(years)){
+   gbarplot(r[i, ], lens, grid = TRUE)
+}
+
+# 2019 gear code 14 to 19
+# 2020 code 13 to 16
+
+# 19  nouveau Northumberland trawl Modified Rock-hopper
+# - smaller foot gear smaller rollers.
+# - mesh of the whole netting is smaller.
+# - Possibly wider wing spread
+# - Bigger mouth
+# - Flatfish trawl
+# - Cod-end with small mesh (as was the case with rock-hopper)
+
+# Alewife and blue-back herring were not separated.
+# Alosa pseudoharengus
+# Alosa aestivalis
+
+# Truncated surveys (smaller survey areas):
+# 2019 - Comparative 33 tows with both trawls (within 3 days) (everywhere)
+# 2020 - Comparative 50 paired tows (zone 25 only, instead of a wider survey)
 
 # Figure out how to specify simple random effects:
 model <- glmmTMB(f ~ length, family = poisson, data = r, verbose = TRUE)
@@ -98,56 +184,12 @@ model <- glmmTMB(f ~ (year|group) + (length | year), family = poisson, data = r,
 # length effect
 # length * year effect
 
-
 # Fit various models:
 model <- list()
 model[[1]] <- gamm(f ~ 1 + offset(off), random = list(year = ~1, length = ~ 1), family = poisson, data = data)
 model[[2]] <- gamm(f ~ 1 + s(xkm, ykm) + offset(off), random = list(year = ~1, length = ~ 1), family = poisson, data = data)
 model[[3]] <- gamm(f ~ 1 + s(xkm, ykm) + offset(off), random = list(year = ~1, length = ~ 1), family = poisson, data = data)
 model[[4]] <- gamm(f ~ 1 + offset(off), random = list(year = ~1, length = ~ 1, station = ~1), family = poisson, data = data)
-
-
-library(mvtnorm)
-library(rockchalk)
-simGroup <- function(g, n=6, rho=0.7) {
-    x <- mvrnorm(mu = rep(0,n),
-             Sigma = rho ^ as.matrix(dist(1:n)) )   ## Simulate the process
-    y <- x + rnorm(n)                               ## Add measurement noise
-    times <- factor(1:n)
-    group <- factor(rep(g,n))
-    data.frame(y, times, group)
-}
-dat1 <- do.call("rbind", lapply(1:1000, simGroup) )
-
-(fit.ar1 <- glmmTMB(y ~ ar1(times + 0 | group), data=dat1))
-
-dat1$times <- numFactor(dat1$times)
-levels(dat1$times)
-
-fit.mat <- glmmTMB(y ~ mat(times + 0 | group), data=dat1, dispformula=~0)
-fit.exp <- glmmTMB(y ~ exp(times + 0 | group), data=dat1)
-
-
-d <- data.frame(z = as.vector(volcano),
-                x = as.vector(row(volcano)),
-                y = as.vector(col(volcano)))
-
-set.seed(1)
-d$z <- d$z + rnorm(length(volcano), sd=15)
-d <- d[sample(nrow(d), 100), ]
-
-volcano.data <- array(NA, dim(volcano))
-volcano.data[cbind(d$x, d$y)] <- d$z
-image(volcano.data, main="Spatial data", useRaster=TRUE)
-
-d$pos <- numFactor(d$x, d$y)
-d$group <- factor(rep(1, nrow(d)))
-
-f <- glmmTMB(z ~ 1 + exp(pos + 0 | group), data=d)
-
-x <- sample(1:2, 10, replace=TRUE)
-y <- sample(1:2, 10, replace=TRUE)
-(pos <- numFactor(x,y))
 
 # Draw map of samples:
 map.new(xlim = c(-65.25, -61.75), ylim = c(45.5, 47.25))
