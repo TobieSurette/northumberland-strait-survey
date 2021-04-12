@@ -24,12 +24,14 @@ m <- kronecker(matrix(1:14, ncol = 2), matrix(1, nrow = 5, ncol = 5))
 m <- rbind(0, cbind(0, m, 0), 0, 0)
 layout(m)
 par(mar = c(0,0,0,0))
+n <- NULL
 for (i in 1:length(years)){
    ix <- data$year == years[i]
    z <- data[ix, ]
    print(years[i])
    r <- aggregate(z$f, by = z["length"], sum)
    gbarplot(r[, 2], as.numeric(as.character(r[, 1])))
+   n[i] <- sum(r[, 2])
 }
 
 # Fit model:
@@ -70,20 +72,46 @@ for (i in 2:length(years)){
 }
 
 # Display map:
+year <- 2019
 map <- matrix(NA, nrow = max(grid$x), ncol = max(grid$y))
-for (k in 1:length(ix)) map[grid$x[ix[k]], grid$y[ix[k]]] <- mu[k, 1, 1]
-
+for (k in 1:length(ix)) map[grid$x[ix[k]], grid$y[ix[k]]] <- mu[k, 20, year-2006]
+print(range(exp(map), na.rm = TRUE))
 xx <- -64.86194 + ((1:max(grid$x))-1) * dx
 yy <- 45.7 + ((1:max(grid$y))-1) * dy
-image(xx, yy, exp(map))
-ux <- x$longitude[year(x) == 2007]
-uy <- x$latitude[year(x) == 2007]
-uz <- apply(x[fvars], 1, sum)[year(x) == 2007]
+image(xx, yy, exp(map), zlim = c(0, 0.002))
+ux <- x$longitude[year(x) == year]
+uy <- x$latitude[year(x) == year]
+uz <- apply(x[fvars], 1, sum)[year(x) == year]
 points(ux, uy, cex = 0.3 * sqrt(uz))
 points(ux[uz == 0], uy[uz == 0], pch = "x", lwd = 2, cex = 0.75)
 map("coast")
 
-apply(mu, c(1,2), sum)
+# Length-frequencies:
+f <- apply(exp(mu), 2:3, mean)
+clg()
+m <- kronecker(matrix(1:14, ncol = 2), matrix(1, nrow = 5, ncol = 5))
+m <- rbind(0, cbind(0, m, 0), 0, 0, 0)
+layout(m)
+par(mar = c(0,0,0,0))
+for (i in 1:ncol(f)){
+   gbarplot(f[, i], lens, grid = TRUE, xaxt = "n", yaxt = "n", ylim = c(0, 2.5))
+   text(par("usr")[1] + 0.8 * diff(par("usr"))[1:2],
+        par("usr")[3] + 0.8 * diff(par("usr"))[3:4],
+        years[i])
+
+   if (i == 1) axis(2)
+   if (i %in% 2:(ncol(f)/2)) axis(2)
+   if (i %in% round((ncol(f)/2)*(1:2))) axis(1)
+
+   if (i == round(ncol(f)/4)) mtext("Number per tow", 2, 2.5)
+   if (i == ncol(f)) mtext("Length (cm)", 1, 3, at = par("usr")[1])
+   box()
+}
+
+
+# Index:
+clg()
+gbarplot(apply(f, 2, sum))
 
 # Bathymetry map for the Northumberland Strait:
 map.new(xlim = c(-65, -61.5), ylim = c(45.6, 47.25))
@@ -153,6 +181,9 @@ par(mar = c(0,0,0,0))
 for (i in 1:length(years)){
    gbarplot(r[i, ], lens, grid = TRUE)
 }
+# Put number of tows, numberof fish, year:
+
+
 
 # 2019 gear code 14 to 19
 # 2020 code 13 to 16
