@@ -61,6 +61,9 @@ s <- aggregate(x[fvars], by = list(year = year(x)), sd)
 s <- s[, -1]
 rownames(s) <- years
 
+
+lens <- as.numeric(colnames(f))
+
 # Length-frequencies:
 clg()
 m <- kronecker(matrix(1:12, ncol = 2), matrix(1, nrow = 5, ncol = 5))
